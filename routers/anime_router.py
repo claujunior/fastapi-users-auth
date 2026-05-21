@@ -1,7 +1,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Query
-from services.anime_service import animes_recente,search_animes
+from services.anime_service import animes_recente,search_animes,search_id
 router = APIRouter(
     prefix="/anime",
     tags=["Animes"]
@@ -15,3 +15,6 @@ async def animes_recentes(page: Annotated[int, Query(ge=1)] = 1):
 async def search_anime(search: str):
     return await search_animes(search)
     
+@router.get("/{id}")
+async def searchId(id : int):
+    return await search_id(id)
