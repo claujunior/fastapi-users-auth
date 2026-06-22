@@ -10,7 +10,7 @@ client = AsyncIOMotorClient(MONGO_URL)
 
 db = client["fastapi_db"]
 
-async def creat_idx():
+async def create_indexes():
     await db.users.create_index(
         "username",
         unique=True

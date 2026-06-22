@@ -25,3 +25,16 @@ async def find_user_by_username(username: str):
     return await db.users.find_one({
         "username": username
     })
+
+async def find_user_by_oauth_state(state: str):
+
+    return await db.users.find_one({
+        "mal_oauth_state": state
+    })
+
+async def update_user(username: str, fields: dict):
+
+    await db.users.update_one(
+        {"username": username},
+        {"$set": fields}
+    )
