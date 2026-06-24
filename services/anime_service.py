@@ -28,13 +28,28 @@ async def animes_recente(page):
 
 
 async def search_animes(search):
+    # O MAL ordena a busca de um jeito que joga sequências/filmes acima da
+    # série principal. Buscamos mais resultados com a contagem de usuários e
+    # reordenamos por popularidade, devolvendo os mais relevantes no topo.
     async with httpx.AsyncClient() as client:
         response = await client.get(
             f"{MAL_BASE_URL}/anime",
             headers=HEADERS,
-            params={"limit": 5, "q": search},
+            params={
+                "limit": 20,
+                "q": search,
+                "fields": "num_list_users,mean,media_type,start_season",
+            },
         )
-    return response.json()
+
+    data = response.json()
+    resultados = data.get("data", [])
+    resultados.sort(
+        key=lambda n: n["node"].get("num_list_users", 0),
+        reverse=True,
+    )
+    data["data"] = resultados[:8]
+    return data
 
 
 async def search_id(id):
