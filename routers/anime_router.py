@@ -1,5 +1,5 @@
 from typing import Annotated
-
+from services import anime_service
 import httpx
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
@@ -94,7 +94,11 @@ async def proxy_video(id: int, ep: int, request: Request, lang: str = "sub"):
         media_type=content_type,
         headers=passthrough,
     )
+@router.get("/topanimes")
+async def animes_top():
+    return await anime_service.topanimes()
 
 @router.get("/{id}")
 async def searchId(id : int):
     return await search_id(id)
+

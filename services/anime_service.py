@@ -45,3 +45,13 @@ async def search_id(id):
             params={"fields": DETAIL_FIELDS},
         )
     return response.json()
+
+async def topanimes():
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            f"{MAL_BASE_URL}/anime/ranking",
+            headers=HEADERS,
+            params={ "ranking_type": "all",
+        "limit": 14,},
+        )
+    return response.json()

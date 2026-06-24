@@ -192,3 +192,4 @@ async def _fetch_mal_username(token):
     if response.status_code == 200:
         return response.json().get("name")
     return None
+
