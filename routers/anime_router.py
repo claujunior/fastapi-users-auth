@@ -6,7 +6,7 @@ from fastapi.responses import StreamingResponse
 from starlette.concurrency import run_in_threadpool
 
 from services.anime_service import animes_recente, search_animes, search_id
-from services.streaming import resolve_stream
+from services.streaming import resolve_stream, list_episodes
 
 
 async def _resolver_stream(id: int, ep: int, lang: str):
@@ -16,7 +16,7 @@ async def _resolver_stream(id: int, ep: int, lang: str):
         raise HTTPException(status_code=404, detail="Anime não encontrado")
 
     # anipy é síncrono -> roda fora do event loop
-    stream = await run_in_threadpool(resolve_stream, title, ep, lang)
+    stream = await run_in_threadpool(resolve_stream, title, ep, lang, id)
     if not stream:
         raise HTTPException(
             status_code=502,
@@ -36,6 +36,24 @@ async def animes_recentes(page: Annotated[int, Query(ge=1)] = 1):
 @router.get("/search")
 async def search_anime(search: str):
     return await search_animes(search)
+
+@router.get("/{id}/episodes")
+async def get_episodes(id: int, lang: str = "sub"):
+    """Lista os episódios disponíveis no provedor (fonte real do que dá pra
+    assistir; funciona pra anime em exibição, onde o MAL devolve 0)."""
+    detalhe = await search_id(id)
+    title = detalhe.get("title")
+    if not title:
+        raise HTTPException(status_code=404, detail="Anime não encontrado")
+
+    data = await run_in_threadpool(list_episodes, title, lang, id)
+    if not data:
+        raise HTTPException(
+            status_code=502,
+            detail="Não foi possível listar os episódios (provedor indisponível ou anime não encontrado)",
+        )
+    return data
+
 
 @router.get("/{id}/episodes/{ep}/stream")
 async def get_stream(id: int, ep: int, lang: str = "sub"):
