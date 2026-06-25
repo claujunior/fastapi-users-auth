@@ -19,8 +19,6 @@ SEQUEL_MARKERS = (
 
 
 class _SafeAllAnimeProvider(AllAnimeProvider):
-    # AllAnime às vezes devolve "show": null e o get_info estoura; devolvemos
-    # info vazia nesse caso e deixamos erros de rede subirem pro with_retry.
     def get_info(self, identifier):
         try:
             return super().get_info(identifier)
@@ -72,9 +70,6 @@ def _candidate_ratio(result, mal_titles, penalty):
     name_n = _normalize(result.name)
     ratio = max((fuzz.token_sort_ratio(m, name_n) for m in mal_titles), default=0)
 
-    # nome não bate: consulta os nomes alternativos do provider (resolve título
-    # estilizado tipo Tokyo Ghoul e apelido tipo One Piece = "1P"). Pula isso se
-    # o candidato já é um Special/etc (penalty>0), que não vai vencer mesmo.
     if ratio < 90 and penalty == 0:
         info = _provider.get_info(result.identifier)
         for alt in info.alternative_names or []:

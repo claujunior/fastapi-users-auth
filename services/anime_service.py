@@ -27,8 +27,6 @@ _GENEROS_NSFW = {"ecchi", "erotica", "hentai"}
 
 
 def _is_safe(node):
-    # O campo nsfw do MAL é furado (DxD vem "white"); rating r+/rx (nudez/hentai)
-    # e os gêneros ecchi/erotica/hentai são o sinal confiável.
     if (node.get("rating") or "") in _RATINGS_NSFW:
         return False
     generos = {g.get("name", "").lower() for g in node.get("genres") or []}
@@ -68,8 +66,6 @@ def _relevancia(query, node):
     titulo = node.get("title", "")
     en = alt.get("en", "")
 
-    # bônus de exato só em title/en; ja e synonyms trazem o nome da franquia nos
-    # spinoffs (ex.: filme de One Piece tem ja="ONE PIECE"), então só no fuzzy.
     if (titulo and _norm(titulo) == q) or (en and _norm(en) == q):
         return 130
 
