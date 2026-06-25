@@ -15,7 +15,6 @@ async def _resolver_stream(id: int, ep: int, lang: str):
     if not title:
         raise HTTPException(status_code=404, detail="Anime não encontrado")
 
-    # anipy é síncrono -> roda fora do event loop
     stream = await run_in_threadpool(resolve_stream, title, ep, lang, id)
     if not stream:
         raise HTTPException(
@@ -39,8 +38,6 @@ async def search_anime(search: str):
 
 @router.get("/{id}/episodes")
 async def get_episodes(id: int, lang: str = "sub"):
-    """Lista os episódios disponíveis no provedor (fonte real do que dá pra
-    assistir; funciona pra anime em exibição, onde o MAL devolve 0)."""
     detalhe = await search_id(id)
     title = detalhe.get("title")
     if not title:
@@ -57,7 +54,6 @@ async def get_episodes(id: int, lang: str = "sub"):
 
 @router.get("/{id}/episodes/{ep}/stream")
 async def get_stream(id: int, ep: int, lang: str = "sub"):
-    """Metadados do stream (resolução, tipo). O player usa pra decidir mp4/hls."""
     stream = await _resolver_stream(id, ep, lang)
     return {
         "resolution": stream["resolution"],
@@ -68,8 +64,6 @@ async def get_stream(id: int, ep: int, lang: str = "sub"):
 
 @router.get("/{id}/episodes/{ep}/video")
 async def proxy_video(id: int, ep: int, request: Request, lang: str = "sub"):
-    """Proxy do vídeo: busca no host com o Referer correto (hotlink protection)
-    e repassa os bytes pro navegador, encaminhando Range pra permitir seek."""
     stream = await _resolver_stream(id, ep, lang)
 
     fwd_headers = {}

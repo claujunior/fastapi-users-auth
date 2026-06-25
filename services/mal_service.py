@@ -71,10 +71,27 @@ async def handle_callback(code, state):
 
 async def connection_status(username):
     user = await find_user_by_username(username)
-    return {
-        "connected": bool(user.get("mal_access_token")),
+    if not user.get("mal_access_token"):
+        return {"connected": False}
+
+    result = {
+        "connected": True,
         "mal_username": user.get("mal_username"),
+        "mal_picture": user.get("mal_picture"),
+        "mal_statistics": None,
     }
+
+    try:
+        token = await _valid_token(username)
+        profile = await _fetch_mal_profile(token)
+        if profile:
+            result["mal_username"] = profile.get("name") or result["mal_username"]
+            result["mal_picture"] = profile.get("picture") or result["mal_picture"]
+            result["mal_statistics"] = profile.get("anime_statistics")
+    except Exception:
+        pass
+
+    return result
 
 
 async def disconnect(username):
@@ -83,6 +100,7 @@ async def disconnect(username):
         "mal_refresh_token": None,
         "mal_token_expires_at": None,
         "mal_username": None,
+        "mal_picture": None,
     })
     return {"connected": False}
 
@@ -92,20 +110,24 @@ async def get_animelist(username, status=None):
 
     params = {
         "fields": "list_status,num_episodes,main_picture,mean",
-        "limit": 100,
+        "limit": 1000,
         "nsfw": "true",
         "sort": "list_updated_at",
     }
     if status:
         params["status"] = status
 
+    todos = []
+    url = f"{API_BASE}/users/@me/animelist"
     async with httpx.AsyncClient() as client:
-        response = await client.get(
-            f"{API_BASE}/users/@me/animelist",
-            headers=_bearer(token),
-            params=params,
-        )
-    return response.json()
+        while url:
+            response = await client.get(url, headers=_bearer(token), params=params)
+            data = response.json()
+            todos.extend(data.get("data", []))
+            url = data.get("paging", {}).get("next")
+            params = None
+
+    return {"data": todos}
 
 
 async def update_list(username, anime_id, body):
@@ -179,17 +201,22 @@ async def _save_tokens(username, tokens):
         "mal_oauth_state": None,
     }
 
-    name = await _fetch_mal_username(tokens["access_token"])
-    if name:
-        fields["mal_username"] = name
+    profile = await _fetch_mal_profile(tokens["access_token"])
+    if profile:
+        fields["mal_username"] = profile.get("name")
+        fields["mal_picture"] = profile.get("picture")
 
     await update_user(username, fields)
 
 
-async def _fetch_mal_username(token):
+async def _fetch_mal_profile(token):
     async with httpx.AsyncClient() as client:
-        response = await client.get(f"{API_BASE}/users/@me", headers=_bearer(token))
+        response = await client.get(
+            f"{API_BASE}/users/@me",
+            headers=_bearer(token),
+            params={"fields": "name,picture,anime_statistics"},
+        )
     if response.status_code == 200:
-        return response.json().get("name")
+        return response.json()
     return None
 

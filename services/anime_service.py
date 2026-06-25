@@ -22,15 +22,12 @@ async def animes_recente(page):
         response = await client.get(
             f"{MAL_BASE_URL}/anime/season/2026/spring",
             headers=HEADERS,
-            params={"limit": 7, "offset": (page - 1) * 7},
+            params={"limit": 7, "offset": (page - 1) * 7, "nsfw": "true"},
         )
     return response.json()
 
 
 async def search_animes(search):
-    # O MAL ordena a busca de um jeito que joga sequências/filmes acima da
-    # série principal. Buscamos mais resultados com a contagem de usuários e
-    # reordenamos por popularidade, devolvendo os mais relevantes no topo.
     async with httpx.AsyncClient() as client:
         response = await client.get(
             f"{MAL_BASE_URL}/anime",
@@ -39,6 +36,7 @@ async def search_animes(search):
                 "limit": 20,
                 "q": search,
                 "fields": "num_list_users,mean,media_type,start_season",
+                "nsfw": "true",
             },
         )
 
@@ -66,7 +64,6 @@ async def topanimes():
         response = await client.get(
             f"{MAL_BASE_URL}/anime/ranking",
             headers=HEADERS,
-            params={ "ranking_type": "all",
-        "limit": 14,},
+            params={"ranking_type": "all", "limit": 14, "nsfw": "true"},
         )
     return response.json()

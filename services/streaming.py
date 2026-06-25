@@ -6,9 +6,7 @@ from rapidfuzz import fuzz
 from anipy_api.provider.providers import AllAnimeProvider
 from anipy_api.provider import LanguageTypeEnum
 
-# Blocos de letras unicode "estilizadas" -> ASCII. Alguns títulos no AllAnime
-# vêm assim (ex.: a 1ª temporada de Tokyo Ghoul é "🆃🅾🅺🆈🅾 🅶🅷🅾🆄🅻"),
-# o que quebra o fuzzy. Convertemos pra ASCII antes de comparar.
+# Letras unicode estilizadas -> ASCII (alguns títulos do AllAnime usam).
 _FANCY_RANGES = [
     (0x1F170, 0x1F189, ord("A")),  # negative squared latin A-Z
     (0x1F130, 0x1F149, ord("A")),  # squared latin A-Z
@@ -18,8 +16,6 @@ _FANCY_RANGES = [
     (0xFF41, 0xFF5A, ord("a")),    # fullwidth a-z
 ]
 
-# marcadores de sequência/derivado: se aparecem no candidato mas não no título
-# buscado, penalizam o score (evita casar S1 com √A, :re, filme, OVA...).
 _SEQUEL_MARKERS = (
     "√a", ":re", "2nd", "3rd", "season", "movie", "film",
     "ova", "ona", "special", "part", "final", "kanketsu",
@@ -39,34 +35,23 @@ def _normalize(s):
     s = unicodedata.normalize("NFKC", s)
     return " ".join(s.lower().split())
 
-MAX_ATTEMPTS = 4          # tentativas por chamada (1 + 3 retries)
-BASE_DELAY = 1.0          # backoff: 1s, 2s, 4s...
-CACHE_TTL = 1800          # segundos: reusa o link resolvido (o token dura ~dias)
 
-# O AllAnimeProvider é síncrono (usa requests). Reusamos uma instância;
-# o resolver deve rodar em threadpool a partir do endpoint async.
+MAX_ATTEMPTS = 4
+BASE_DELAY = 1.0
+CACHE_TTL = 1800
+
 _provider = AllAnimeProvider(base_url_override=None)
 
-# cache em memória: (mal_id, title, episode, lang) -> (resultado, expira_em)
 _cache = {}
-# cache da lista de episódios: (mal_id, title, lang) -> (resultado, expira_em)
 _eps_cache = {}
 
-# Override manual MAL id -> identifier do AllAnime, para títulos que o search
-# do provedor não casa por nome (ex.: One Piece está cadastrado como "1P").
-# Adicione aqui quando encontrar um anime que resolve o errado.
+# Override MAL id -> identifier do AllAnime, quando o search não casa por nome.
 MAL_TO_ALLANIME = {
-    21: "ReooPAxPMsHM4KPMY",   # One Piece -> "1P" (1168 eps)
+    21: "ReooPAxPMsHM4KPMY",   # One Piece ("1P")
 }
 
 
 def with_retry(fn, *args, attempts=MAX_ATTEMPTS, base_delay=BASE_DELAY):
-    """Roda fn(*args) com retry e backoff exponencial.
-
-    O provedor (AllAnime) é instável: devolve 520 e respostas vazias
-    (data["episode"] vira None -> TypeError). Retry recupera a maioria
-    dessas falhas transitórias. Levanta a última exceção se esgotar.
-    """
     for attempt in range(1, attempts + 1):
         try:
             return fn(*args)
@@ -77,12 +62,6 @@ def with_retry(fn, *args, attempts=MAX_ATTEMPTS, base_delay=BASE_DELAY):
 
 
 def _best_match(title, results):
-    """Escolhe o resultado do provedor que corresponde ao título do MAL.
-
-    1) Prefere match exato após normalizar (des-estiliza unicode);
-    2) senão, usa token_sort_ratio e penaliza marcadores de sequência
-       (√A, :re, Movie, OVA...) que estejam no candidato mas não no título.
-    """
     alvo = _normalize(title)
 
     exatos = [r for r in results if _normalize(r.name) == alvo]
@@ -107,8 +86,6 @@ def _stream_type(url):
 
 
 def _resolve_identifier(title, mal_id):
-    """Acha o identifier do anime no AllAnime: override manual primeiro,
-    senão busca por nome + _best_match. Retorna (identifier, provider_title)."""
     override = MAL_TO_ALLANIME.get(mal_id)
     if override:
         return override, title
@@ -121,8 +98,6 @@ def _resolve_identifier(title, mal_id):
 
 
 def list_episodes(title, lang="sub", mal_id=None):
-    """Lista os episódios disponíveis no provedor (funciona pra anime em
-    exibição, onde o MAL devolve num_episodes=0). Retorna dict ou None."""
     key = (mal_id, title, lang)
     cached = _eps_cache.get(key)
     if cached and cached[1] > time.time():
@@ -144,14 +119,6 @@ def list_episodes(title, lang="sub", mal_id=None):
 
 
 def resolve_stream(title, episode, lang="sub", mal_id=None):
-    """Resolve o link de vídeo de UM episódio, sob demanda.
-
-    title: título vindo do MAL.
-    episode: número do episódio escolhido pelo usuário.
-    lang: "sub" ou "dub".
-    mal_id: id do MAL (usado pra consultar o override manual).
-    Retorna dict com a URL do melhor stream, ou None se não houver.
-    """
     key = (mal_id, title, int(episode), lang)
     cached = _cache.get(key)
     if cached and cached[1] > time.time():
@@ -182,6 +149,5 @@ def resolve_stream(title, episode, lang="sub", mal_id=None):
 
 
 if __name__ == "__main__":
-    # smoke test rápido: resolve só 1 episódio
     import json
     print(json.dumps(resolve_stream("Naruto", 1), indent=2))
