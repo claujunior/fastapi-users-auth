@@ -12,6 +12,7 @@ from repositories.user_repository import (
     find_user_by_oauth_state,
     update_user,
 )
+from services.anime_service import _is_safe
 
 load_dotenv()
 
@@ -105,13 +106,13 @@ async def disconnect(username):
     return {"connected": False}
 
 
-async def get_animelist(username, status=None):
+async def get_animelist(username, status=None, nsfw=True):
     token = await _valid_token(username)
 
     params = {
-        "fields": "list_status,num_episodes,main_picture,mean",
+        "fields": "list_status,num_episodes,main_picture,mean,rating,genres",
         "limit": 1000,
-        "nsfw": "true",
+        "nsfw": "true" if nsfw else "false",
         "sort": "list_updated_at",
     }
     if status:
@@ -126,6 +127,9 @@ async def get_animelist(username, status=None):
             todos.extend(data.get("data", []))
             url = data.get("paging", {}).get("next")
             params = None
+
+    if not nsfw:
+        todos = [i for i in todos if _is_safe(i.get("node") or {})]
 
     return {"data": todos}
 

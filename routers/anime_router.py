@@ -11,11 +11,10 @@ from services.streaming import resolve_stream, list_episodes
 
 async def _resolver_stream(id: int, ep: int, lang: str):
     detalhe = await search_id(id)
-    title = detalhe.get("title")
-    if not title:
+    if not detalhe.get("title"):
         raise HTTPException(status_code=404, detail="Anime não encontrado")
 
-    stream = await run_in_threadpool(resolve_stream, title, ep, lang, id)
+    stream = await run_in_threadpool(resolve_stream, detalhe, ep, lang)
     if not stream:
         raise HTTPException(
             status_code=502,
@@ -29,21 +28,20 @@ router = APIRouter(
 )
 
 @router.get("")
-async def animes_recentes(page: Annotated[int, Query(ge=1)] = 1):
-    return await animes_recente(page)
+async def animes_recentes(page: Annotated[int, Query(ge=1)] = 1, nsfw: bool = True):
+    return await animes_recente(page, nsfw)
 
 @router.get("/search")
-async def search_anime(search: str):
-    return await search_animes(search)
+async def search_anime(search: str, nsfw: bool = True):
+    return await search_animes(search, nsfw)
 
 @router.get("/{id}/episodes")
 async def get_episodes(id: int, lang: str = "sub"):
     detalhe = await search_id(id)
-    title = detalhe.get("title")
-    if not title:
+    if not detalhe.get("title"):
         raise HTTPException(status_code=404, detail="Anime não encontrado")
 
-    data = await run_in_threadpool(list_episodes, title, lang, id)
+    data = await run_in_threadpool(list_episodes, detalhe, lang)
     if not data:
         raise HTTPException(
             status_code=502,
@@ -107,8 +105,8 @@ async def proxy_video(id: int, ep: int, request: Request, lang: str = "sub"):
         headers=passthrough,
     )
 @router.get("/topanimes")
-async def animes_top():
-    return await anime_service.topanimes()
+async def animes_top(nsfw: bool = True):
+    return await anime_service.topanimes(nsfw)
 
 @router.get("/{id}")
 async def searchId(id : int):

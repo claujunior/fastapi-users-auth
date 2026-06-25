@@ -39,8 +39,8 @@ async def mal_disconnect(data=Depends(verify_token)):
 
 
 @router.get("/me/animelist")
-async def my_animelist(status: Optional[str] = None, data=Depends(verify_token)):
-    return await mal_service.get_animelist(data["sub"], status)
+async def my_animelist(status: Optional[str] = None, nsfw: bool = True, data=Depends(verify_token)):
+    return await mal_service.get_animelist(data["sub"], status, nsfw)
 
 
 @router.patch("/me/animelist/{anime_id}")

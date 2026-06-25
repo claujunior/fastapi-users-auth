@@ -11,11 +11,11 @@ on-demand, com retry e cache.
 Front (web/)                         Backend (fastapi-users-auth/)
 ─────────────                        ─────────────────────────────
 paginaAnime.js                       anime_router.py
-  num_episodes (MAL) ──► grade       GET /anime/{id}/episodes/{ep}/stream  -> metadados
+  /episodes ──► grade                GET /anime/{id}/episodes/{ep}/stream  -> metadados
   clique no ep ──────────────────►   GET /anime/{id}/episodes/{ep}/video   -> proxy do mp4
   <video src = /video proxy>         services/streaming.py
-                                       resolve_stream(title, ep, lang)
-                                         AllAnime get_search -> get_video
+                                       resolve_stream(detail, ep, lang)
+                                         _resolve_anime -> get_video
 ```
 
 - **`/stream`** → `{resolution, type, provider_title}`. O player usa pra saber mp4 vs hls.
@@ -40,20 +40,24 @@ backend (ok pra projeto pequeno).
    e avisa, por garantia, mas até agora esse provedor serve mp4 pra tudo. Se um dia
    aparecer HLS, suportar exige **hls.js** no front + reescrever segmentos no proxy.
 
-2. **Match de título (MAL → AllAnime).** O `_best_match`:
-   - **des-estiliza unicode** antes de comparar (a 1ª temp. de Tokyo Ghoul está
-     cadastrada como `🆃🅾🅺🆈🅾 🅶🅷🅾🆄🅻` → normaliza pra `tokyo ghoul`);
-   - **prefere match exato**; senão usa `token_sort_ratio` e **penaliza marcadores
-     de sequência** (√A, :re, Movie, OVA, Season...) que estejam no candidato mas
-     não no título buscado.
-   - Cobre a grande maioria. Mas o search do AllAnime às vezes **não traz a série
-     principal** ou usa **apelido** — ex.: One Piece está cadastrado como **"1P"**
-     (1168 eps), impossível de casar por nome.
+2. **Match de título (MAL → AllAnime).** Matcher próprio (`_match`/`_resolve_anime`),
+   que pega as boas ideias do `MyAnimeListAdapter` do `anipy` sem os pontos fracos
+   dele (que casava Specials/Recaps por usar Levenshtein puro num `set`). Recebe o
+   **detalhe completo do MAL** (não só o título) e:
+   - **busca** o provedor com título principal **+ en/ja/sinônimos**;
+   - **pontua** cada candidato por `token_sort_ratio` contra o nome dele; se o nome
+     não bate (e ele não é um Special), consulta os **nomes alternativos** via
+     `get_info` — é isso que casa nome estilizado (Tokyo Ghoul = `🆃🅾🅺🆈🅾...`)
+     e apelido (One Piece = **"1P"**, 1168 eps) **sem precisar de override**;
+   - **penaliza** marcadores de derivado no nome do candidato (`SEQUEL_MARKERS`:
+     special, recap, ova, movie, season, part, √a, :re...) que não estejam no título
+     do MAL — é o que evita cair em "X Specials"/"Recaps";
+   - só aceita acima de `MIN_RATIO` (70), senão devolve `None`.
 
-3. **Override manual** (`MAL_TO_ALLANIME` em `services/streaming.py`). Mapa
-   `MAL id -> identifier do AllAnime` pros casos do item 2 que o matcher não resolve.
-   Tem prioridade sobre a busca. Já contém `21 -> ReooPAxPMsHM4KPMY` (One Piece).
-   Pra adicionar outro: ache o `identifier` do anime no AllAnime e mapeie o MAL id.
+3. **`_SafeAllAnimeProvider`** (em `services/streaming.py`). O matcher chama
+   `get_info` em candidatos; o AllAnime às vezes devolve `"show": null`, o que
+   estoura. A subclasse devolve info vazia nesse caso (mantendo erros de rede
+   subindo pro `with_retry`), pra um candidato ruim não derrubar o match inteiro.
 
 4. **Cache de 30 min** (`CACHE_TTL` em `services/streaming.py`). O link resolvido
    é reusado por (título, episódio, idioma) pra não bater no provedor instável a
